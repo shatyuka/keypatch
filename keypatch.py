@@ -311,32 +311,43 @@ class Keypatch_Asm:
         (arch, mode) = (None, None)
 
         # heuristically detect hardware setup
-        info = idaapi.get_inf_structure()
-        
         try:
-            cpuname = info.procname.lower()
+            # since IDA9 beta 1 removed idaapi.get_inf_structure()
+            import ida_ida
+            cpuname = ida_ida.inf_get_procname().lower()
+            is_be = ida_ida.inf_is_be()
+            is_64bit = ida_ida.inf_is_64bit()
+            is_32bit = ida_ida.inf_is_32bit_exactly()
         except:
-            cpuname = info.procName.lower()
+            info = idaapi.get_inf_structure()
 
-        try:
-            # since IDA7 beta 3 (170724) renamed inf.mf -> is_be()/set_be()
-            is_be = idaapi.cvar.inf.is_be()
-        except:
-            # older IDA versions
-            is_be = idaapi.cvar.inf.mf
-        # print("Keypatch BIG_ENDIAN = %s" %is_be)
-        
+            try:
+                cpuname = info.procname.lower()
+            except:
+                cpuname = info.procName.lower()
+
+            try:
+                # since IDA7 beta 3 (170724) renamed inf.mf -> is_be()/set_be()
+                is_be = idaapi.cvar.inf.is_be()
+            except:
+                # older IDA versions
+                is_be = idaapi.cvar.inf.mf
+            # print("Keypatch BIG_ENDIAN = %s" %is_be)
+
+            is_64bit = info.is_64bit()
+            is_32bit = info.is_32bit()
+
         if cpuname == "metapc":
             arch = KS_ARCH_X86
-            if info.is_64bit():
+            if is_64bit:
                 mode = KS_MODE_64
-            elif info.is_32bit():
+            elif is_32bit:
                 mode = KS_MODE_32
             else:
                 mode = KS_MODE_16
         elif cpuname.startswith("arm"):
             # ARM or ARM64
-            if info.is_64bit():
+            if is_64bit:
                 arch = KS_ARCH_ARM64
                 if is_be:
                     mode = KS_MODE_BIG_ENDIAN
@@ -351,7 +362,7 @@ class Keypatch_Asm:
                     mode = KS_MODE_ARM | KS_MODE_LITTLE_ENDIAN
         elif cpuname.startswith("sparc"):
             arch = KS_ARCH_SPARC
-            if info.is_64bit():
+            if is_64bit:
                 mode = KS_MODE_SPARC64
             else:
                 mode = KS_MODE_SPARC32
@@ -361,7 +372,7 @@ class Keypatch_Asm:
                 mode |= KS_MODE_LITTLE_ENDIAN
         elif cpuname.startswith("ppc"):
             arch = KS_ARCH_PPC
-            if info.is_64bit():
+            if is_64bit:
                 mode = KS_MODE_PPC64
             else:
                 mode = KS_MODE_PPC32
@@ -370,7 +381,7 @@ class Keypatch_Asm:
                 mode += KS_MODE_BIG_ENDIAN
         elif cpuname.startswith("mips"):
             arch = KS_ARCH_MIPS
-            if info.is_64bit():
+            if is_64bit:
                 mode = KS_MODE_MIPS64
             else:
                 mode = KS_MODE_MIPS32
@@ -1540,7 +1551,11 @@ try:
         @classmethod
         def update(self, ctx):
             try:
-                if ctx.form_type == idaapi.BWN_DISASM:
+                if idaapi.IDA_SDK_VERSION >= 700:
+                    form_type = ctx.widget_type
+                else:
+                    form_type = ctx.form_type
+                if form_type == idaapi.BWN_DISASM:
                     return idaapi.AST_ENABLE_FOR_FORM
                 else:
                     return idaapi.AST_DISABLE_FOR_FORM
